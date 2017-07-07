@@ -1,6 +1,7 @@
 # Todo
 
 - http://nbviewer.jupyter.org/github/BVLC/caffe/blob/master/examples/02-fine-tuning.ipynb
+- http://neuralnetworksanddeeplearning.com/
 
 ## Deep learning libraries:
 
@@ -14,6 +15,7 @@
     - darch
     - deepnet
     - h2o
+    
 ## Topics
 
 - Tree model
@@ -22,8 +24,10 @@
 - Feature selection
 - Regularized regression
 - Regularized generalized regression
+- Python Code for data preprocessing
+- Python Code for data wrangling
 
-- Social network analytics
+- Social network analytics: twitter data (Trump)
 - Natural language processing
 - Bayesian
 
