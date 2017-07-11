@@ -1,5 +1,17 @@
 # Todo
 
+- Trump
+
+When? 
+
+- time of a day
+- counts every day
+
+What? 
+
+- name mentioned [sentiment for that person]
+- country mentioned [sentiment for the country]
+
 - http://nbviewer.jupyter.org/github/BVLC/caffe/blob/master/examples/02-fine-tuning.ipynb
 - http://neuralnetworksanddeeplearning.com/
 
