@@ -1,0 +1,657 @@
+---
+title: "Propensity Score Methods in Observational Studies"
+author: "Hui Lin"
+date: "`r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(readr)
+library(MASS)
+library(MatchIt)
+library(optmatch)
+library(ltm)
+library(corrplot)
+library(Matching)
+library(rbounds)
+library(rgenoud)
+library(Zelig)
+
+tchoice<-read.csv("CleanData/SubDat2017.csv")
+tchoice<-DataScienceR::impute_dat(tchoice,method="zero")
+```
+
+
+class: inverse, center, middle
+
+# Overview
+
+---
+
+## Types of Research
+
+![](img/typeofresearch.PNG)
+
+???
+Randomized controlled trial: (RCT) A study in which people are allocated at random (by chance alone) to receive one of several clinical interventions. One of these interventions is the standard of comparison or control. The control may be a standard practice, a placebo ("sugar pill"), or no intervention at all.
+
+Non-randomized controlled trial: (Non-RCT)
+An experimental study in which people are allocated to different interventions using methods that are not random. 
+
+The past three decades have witnessed a chorus of challenges to the fundamental assumptions embedded in the experimental approach. Critics have been quick to note the complexities of applying randomized trials in studies conducted with humans rather than agricultural fields.
+
+---
+count: false
+
+### Non-randomised controlled study (NRS) designs (Hui's Use Only)
+
+Below are some types of Non-randomized controlled study (NRS) design used for evaluating the effects of interventions
+
+- **Non-randomized controlled trial** : An experimental study in which people are allocated to different interventions using methods that are not random. 
+ 
+- **Controlled before-and-after study** : A study in which observations are made before and after the implementation of an intervention, both in a group that receives the intervention and in a control group that does not. 
+ 
+- **Interrupted time series study**: A study that uses observations at multiple time points before and after an intervention (the 'interruption'). The design attempts to detect whether the intervention has had an effect significantly greater than any underlying trend over time.
+ 
+- **Historically controlled study** : A study that compares a group of participants receiving an intervention with a similar group from the past who did not.
+
+---
+count: false
+
+### Non-randomised controlled study (NRS) designs (Hui's Use Only)
+ 
+- **Cohort study**: A study in which a defined group of people (the cohort) is followed over time, to examine associations between different interventions received and subsequent outcomes. A 'prospective' cohort study recruits participants before any intervention and follows them into the future. A 'retrospective' cohort study identifies subjects from past records describing the interventions received and follows them from the time of those records. 
+ 
+- **Case-control study**: A study that compares people with a specific outcome of interest ('cases') with people from the same source population but without that outcome ('controls'), to examine the association between the outcome and prior exposure (e.g. having an intervention). This design is particularly useful when the outcome is rare.
+ 
+- **Cross-sectional study**: A study that collects information on interventions (past or present) and current health outcomes, i.e. restricted to health states, for a group of people at a particular point in time, to examine associations between the outcomes and exposure to interventions.
+ 
+- **Case series (uncontrolled longitudinal study)**: Observations are made on a series of individuals, usually all receiving the same intervention, before and after an intervention but with no control group.
+
+---
+
+## Randomized Experiments
+
+- A famous example to illustrate the power of randomization and the logic of hypothesis testing
+
+> A lady declares that by tasting a cup of tea made with milk she can discriminate whether the milk or the tea infusion was first added to the cup. We will consider the problem of designing an experiment by means of which this assertion can be tested. 
+
+--
+
+- control covariates or confounding variables: temperature of tea, the strength of the tea, the use of sugar, and the amount of milk added......
+
+--
+
+- Randomization: control for nothing
+    1. mix 8 cups of tea, 4 in each way
+    1. present them to the subject for judgment in a **random order**
+
+???
+
+A confounding variable is a variable, other than the independent variable that you're interested in, that may affect the dependent variable. You deal with confounding variables by controlling them; by matching; by randomizing; or by statistical control.
+
+---
+
+## Fisher's Randomized Experiment
+
+1. units of analysis: presentation of the tea cups to the taster
+1. treatment assignment process: the order of presentation of tea cups
+
+    $\mathbf{z}=(11110000)$: 4 cups with milk added first followed by 4 cups with tea added first
+
+1.  actual outcome: $\mathbf{r}=(11110000)$
+1. test goal: taster's ability v.s. guessing
+
+---
+
+## Fisher's Randomized Experiment
+
+$$H_0: No\ ability$$
+
+--
+
+- if $\mathbf{r}=(11110000)$ and rule=match exactly
+
+--
+
+- if $\mathbf{r}=(11110000)$ and rule=match 6 out of 8
+
+**Important Notes:**
+
+- calculate all probable outcomes for each study unit
+
+> In considering the appropriateness of any proposed experimental design, it is always needful to forecast all possible results of the experiment, and to have decided without ambiguity what interpretations shall be placed upon each one of them. [Sir Ronald Fisher]
+
+---
+
+## Types of Statistical Tests
+
+--
+
+1. Tests for binary outcomes: **Fisher's exact test (1935/1971)**, **chi-square test**, Mantel-Haenszel statistic (1959), and McNemar's Test (1947), Miettinen's Exact Test (1969), Hui's Exact Test (2013), Hui's Asymptotic Test (2013)
+
+--
+
+2. Tests for an outcome variable that is confined to a small number of values representing a numerical scoring of several ordered categories (i.e. an ordinal variable):  Mantel's extension of the Mantel-Haenszel test (1963)
+
+--
+
+3. Test for a single stratum S=1, where the outcome variable may take many numerical values:  One-sample t test, **Two-sample t-test**, **ANOVA**, **Wilcoxon's rank sum test (1945)**
+
+--
+
+4. Tests for an outcome variable that is ordinal and the number of strata S is large compared with sample size N: the Hodges and Lehmann test using the signed rank statistic (1962)
+
+.footnote[
+[1] See [Handbook of Biological Statistics](http://www.biostathandbook.com)
+]
+
+???
+Fisher's exact test is more accurate than the chi-square test or G-test of independence when the expected numbers are small. I recommend you use Fisher's exact test when the total sample size is less than 1000, and use the chi-square or G-test for larger sample sizes. 
+
+You can use the chi-square test of independence or the G-test of independence on the same kind of data as Fisher's exact test. When some of the expected values are small, Fisher's exact test is more accurate than the chi-square or G-test of independence. If all of the expected values are very large, Fisher's exact test becomes computationally impractical; fortunately, the chi-square or G-test will then give an accurate result. The usual rule of thumb is that Fisher's exact test is only necessary when one or more expected values are less than 5, but this is a remnant of the days when doing the calculations for Fisher's exact test was really hard. I recommend using Fisher's exact test for any experiment with a total sample size less than 1000. See the web page on small sample sizes for further discussion of the boundary between "small" and "large."
+You should use McNemar's test when the two samples are not independent, but instead are two sets of pairs of observations. Often, each pair of observations is made on a single individual, such as individuals before and after a treatment or individuals diagnosed using two different techniques. 
+
+Student's t-test for two samples is mathematically identical to a one-way anova with two categories; because comparing the means of two samples is such a common experimental design, and because the t-test is familiar to many more people than anova, I treat the two-sample t-test separately.
+
+The t-test assumes that the observations within each group are normally distributed. If the distribution is symmetrical, such as a flat or bimodal distribution, the one-sample t-test is not at all sensitive to the non-normality; you will get accurate estimates of the P value, even with small sample sizes. A severely skewed distribution can give you too many false positives unless the sample size is large (above 50 or so). If your data are severely skewed and you have a small sample size, you should try a data transformation to make them less skewed. With large sample sizes (simulations I've done suggest 50 is large enough), the one-sample t-test will give accurate results even with severely skewed data.
+
+Use the Wilcoxon signed-rank test when you'd like to use the paired t-test, but the differences are severely non-normally distributed.
+
+---
+
+## Research Question and Data
+
+```{r}
+tchoice <- tchoice%>%
+  mutate(CORN_UNITS_CHG_PCT=(REG_SAM_CORN2017-REG_SAM_CORN2016)/REG_SAM_CORN2016,
+         CORN_UNITS_CHG=REG_SAM_CORN2017-REG_SAM_CORN2016)
+```
+    
+- Question: Did the TruChoice Advance Incentive increase customers' corn units?
+- Data:  
+    - Count of customers receiving TruChoice Incentive: $n_T =$ `r sum(tchoice$TREATMENT)`
+    - $n_C = 19954$ 
+    - Treatment: TruChoice Incentive vs comparison [`TREATMENT`]
+    - Outcome: Corn units change [`CORN_UNITS_CHG`]
+    ```{r}
+    sort(tchoice$CORN_UNITS_CHG_PCT, decreasing = T)[1:20]
+    ```
+    - Covariates: PY Soy Units, PY Corn Units, PY Corn/Soy Concentration, PY Product Counts Corn/Soy, PY DP, CY DP, EPS PY/CY, CPA PY/CY, QS PY/CY, NET SLE PY, CUST SIZE PHI 
+    
+
+---
+
+## Causal Inference
+
+- Causal claims
+    - Cause = Treatment (TruChoice Advance Incentive)
+    
+    - Effect = Increase in corn units 
+    
+- Causation
+    - Association (Correlation)
+    
+    - Temporal relationship (Cause happened before effect)
+    
+    - Isolation (No confounders)
+
+---
+
+## Research Design
+
+- Correlation
+    - [Point-biserial correlation](https://en.wikipedia.org/wiki/Point-biserial_correlation_coefficient) between intervention and YOY corn units
+    - $r_{pb}$= -0.0279 (p < .000001)
+- t-test
+
+```{r,echo=TRUE}
+t.test(CORN_UNITS_CHG~TREATMENT, data=tchoice)
+```
+
+---
+
+## Research Design: Problems
+
+- Correlation does not mean causation
+
+- In t-test, no controlling for confounding variables
+
+--
+
+- Three Methods for Data Balancing
+
+1. The Ordinary Least Squares Regression
+1. Matching
+1. Stratification
+
+---
+
+## Research Design - Non-RCT
+
+- Regression/ANCOVA
+
+---
+
+## Research Design - Problems
+
+![](img/ControlConfoundersProblem.PNG)
+
+
+---
+class: inverse, center, middle
+
+# Propensity Score Methods
+
+---
+
+## A Theoretical Framework
+
+![](img/PSM_Framework.PNG)
+
+---
+
+## Selection Bias
+
+- Randomization is only theoretically
+
+![](img/SelectionBias1.PNG)
+
+---
+
+## Selection Bias
+
+- Selection bias often exists in practice
+
+- Selection bias can be revealed in unbalanced distributions of observed covariates between treatment conditions
+
+---
+
+## Balancing Covariates
+
+- Could use exact matching
+
+![](img/ExactMatch.PNG)
+
+- Complicated when matching with many covariates, especially continuous covariates
+
+---
+
+## What is PSMs?
+
+- PSMs were coined by Rosenbaum and Rubin (1983a)
+
+--
+
+- Reduce selection bias through balancing the distributions of covariates between the treatment and comparison groups
+
+--
+
+- **Propensity Score** is the **probability** or **likelihood** of being assigned to the treatment group
+
+$p(\mathbf(X_i))=$ A linear combination of observed covariates
+
+--
+
+- Match, stratify or weigh on a single composite variable (i.e., propensity score) rather than multiple covariates
+
+--
+
+- PSMs can help design a non-RCT or observational study that approximates an RCT to make a more valid causal inference
+
+![](img/PSM_CausalEq.PNG)
+
+---
+
+## PSMs: Causal Inference
+
+- Treatment effect:
+
+ $$\triangle_{i}=r_{1i}-r_{0i}$$
+
+- But, it is impossible to calculate --- <span style="color:red">Counterfactual</span>
+
+![](img/TrtEffect.PNG)
+
+---
+
+## PSMs: Causal Inference
+
+- Average Treatment Effect (ATE):
+
+$$ATE = E(r_1)-E(r_0)$$
+
+- In experimental research, ATE is unbiased
+
+- With PSMs, ATE is also unbiased under the assumption of "no unobserved confounders" --- <span style="color:red">strong ignorability</span> in treatment assignment
+
+![](img/TrtEffect2.PNG)
+
+---
+
+##  PSMs: Causal Inference
+
+- Average Treatment effect for the Treated (ATT):
+
+$$ATT = E(r_1|z=1)-E(r_0|z=1)$$
+
+    
+- But, impossible to calculate ---  <span style="color:red">Counterfactual</span>
+    
+- Need experimental research or PSMs
+
+![](img/TrtEffect3.PNG)
+
+---
+
+## PSMs: Assumptions
+
+- **Strong ignitability** in treatment assignment
+    
+    - $(r_{1i}, r_{0i}) \bot z_i|\mathbf{X_i}$
+    
+     Ensure no unobserved confounders
+    
+    - $0<p(\mathbf{X_i})<1$
+    
+     Ensure sufficient commom support
+    
+    - Under the strong ignorability
+    
+     $(r_{1i},r_{01})\bot z_{i}|\mathbf{X_{i}}\Rightarrow(r_{1i},r_{01})\bot z_{i}|p(\mathbf{X_{i}})$
+     
+     $\Rightarrow$ Similar propensity scores are based on similar observed X
+
+- The stable unit treatment value assumption (SUTVA)
+    - Ensure no contamination between treatment conditions
+
+---
+
+## Steps
+
+![](img/steps.PNG)
+
+---
+
+## PSMs: Estimation
+
+- Logistic regression of two treatment conditions on covariates
+    
+    - Propensity score (p) = probability of being assigned to the treatment group
+    
+    - Logit, $ln(\frac{p}{1-p})$, propensity score can be used to achieve normality
+
+![](img/LogitTrans.PNG)
+
+---
+
+## Illustrative Matching Example
+
+![](img/MatchExp.PNG)
+
+---
+
+## Matching Methods: Nearest neighbor 
+
+- For each treated case, select one (or more) control case that has the closest propensity score to that of the treated case
+
+![](img/NearestNeighbor.PNG)
+
+--
+
+- Simple, but a large control group needed to obtain good matched cases
+
+---
+
+## Matching Methods: Caliper 
+
+- For each treated case, select one (or more) control case so that the distance between its propensity score and that of the treated case smaller than a predetermined caliper band b
+
+- $b=0.25 \times SDs$ of propensity scores will remove 90% of selection bias (Rosenbaum & Rubin, 1985)
+
+![](img/Caliper.PNG)
+
+_D and Y were matched in nearest neighbor matching and |0.2-0.38|=0.18 > 0.16_
+
+---
+
+## Matching Methods: Optimal
+
+- Minimized global distance
+
+![](img/Optimal.PNG)
+
+--
+
+- _The global distance was 0.37 in nearest neighbor matching_
+
+- _X was matched with C in nearest neighbor matching and |0.23-0.38|=0.15_
+
+- Y was matched with D in nearest neighbor matching and |0.20-0.38|=0.18
+
+--
+
+- Helpful when there are not many appropriate control matches for the treated cases
+
+---
+
+## Stratification/Subclassification
+
+- Stratify cases based on quantiles of propensity score
+- "Match" cases within each stratum
+- Five strata recommended because up to 90% of the selection bias can be removed (Cochrane, 1965)
+
+![](img/stratify.PNG)
+
+---
+
+## Matching Overview
+
+![](img/MatchingOverview.PNG)
+
+???
+
+Remember that a limitation of the PSM is related to matching on observables
+
+-  If unobserved characteristics are important, we can identify a causal effect using instrumental variables
+-  ...but instrumental variables are generally hard to find
+-  Difference-in-difference exploits the time or cohort dimension, and allows accounting for unobservable but
+fixed characteristics
+
+---
+
+## Weighting
+
+- Directly incorporate propensity scores into outcome analysis with propensity score weighting
+
+- For example, using inverse-probability-of-treatment-weighting (IPTW) in weighted regression
+
+$$w_i = \frac{z_i}{p(\mathbf{X_i})} + \frac{1-z_i}{1-p(\mathbf{X_i})}$$ 
+
+---
+
+## Evaluation  
+
+- Selection Bias
+    - Continuous covariates: t-test of mean difference $B=M_T - M_C$
+    - Categorical covariates: Odds Ratio
+
+- Standardized bias (Rule of thumb < 5%)
+
+$$SB = \frac{B}{\sqrt{\frac{V_T+V_C}{2}}}\times 100%$$
+
+- Percent bias reduction (Rule of thumb > 80%)
+
+$$PBR = \frac{B_{before}-B_{after}}{B_{before}}$$
+
+---
+
+## Analysis: Using the matched data
+
+-  Directly estimate the mean difference
+
+$$\hat{ATT}=\bar{r_1} - \bar{r_0}$$
+
+- Regression adjustment with unbalanced covariates
+
+$$\hat{ATT}=\hat{\beta_1}$$
+
+from
+
+$$r_i=\beta_0 + \beta_1 z_i + \beta_2 X_{i1}^{*}+ \dots + + \beta_{q+1} X_{iq}^{*} + \epsilon_i$$
+
+---
+
+## Analysis: Using all the original data
+
+- After stratification, estimation the weighted mean difference using propensity scores
+
+$$\hat{ATT}=\Sigma_{S} (n_{s1}(\bar{r}_{s1} - \bar{r}_{s0})/N_1)$$
+
+and
+
+$$\hat{ATE} = \Sigma_{S}(n_{s}(\bar{r}_{s1}-\bar{r}_{s0})/N)$$
+
+---
+
+## Analysis: Using all the original data
+
+- Directly estimate ATE on the entire original data
+
+$$\hat{ATE} = \frac{1}{N} \Sigma_{i=1}^{N} \left[\frac{z_{i}r_{i}}{p(\mathbf{X_i})} - \frac{(1-z_i)r_i}{1-p(\mathbf{X_i})} \right]$$
+
+---
+
+## Analysis: Using all the original data
+
+- IPTW in weighted regression
+
+$$r_i = \beta_0 + \beta_1 w_i + \beta_2 X_{i1}^* + \dots + \beta_{q+1}X_{iq}^* + \epsilon_i$$
+
+$$\hat{ATE}=\hat{\beta}_1$$
+with $w_i=\frac{z_i}{p(\mathbf{X_i})} + \frac{1-z_i}{1-p(\mathbf{X_i})}$
+
+or 
+
+$$\hat{ATT}=\hat{\beta_1}$$
+
+with $w_i = z_i + \frac{(1-z_i)p(\mathbf{X_i})}{1-p(\mathbf{X_i})}$
+
+---
+
+## Analysis: Using all the original data
+
+- Regression adjustment with propensity score as a covariate
+
+$$r_i = \beta_0 + \beta_1 z_i + \beta_2 p(\mathbf{X_i})+\beta_3 z_i\times p(\mathbf{X_i})+\epsilon_i$$
+
+$$\hat{ATE}=\hat{\beta_1}$$
+
+---
+
+## Rosenbaum sensitivity test
+
+$\Gamma$ = The degree of departure from random assignment of treatment
+
+- $\Gamma = 1$, randomization worked, no hidden bias
+- $\Gamma >1$, sensitive to possible hidden bias due to an unobserved covariate
+- If need $\Gamma \geq 2$ to have $p \geq 0.05$ or $ATT/ATE=0$, robust to hidden bias due to unobserved covariates (Rule of thumb)
+
+---
+
+## Conduct nearest neighbor matching
+
+Use MatchIt to conduct  matching on the selected covariates
+
+```{r}
+dv<-nnet::class.ind(tchoice$CUST_SIZE_PHI2017)
+dv<-dv[,-1]
+tchoice<-cbind(tchoice,dv)
+
+m1.out <- matchit(TREATMENT ~ REG_SAM_SOY2016+REG_SAM_CORN2016+PCT_CONC_CORN2016+PCT_CONC_SOY2016+PROD_CT_CORN2016+PROD_CT_SOY2016 + DP_IND2016 + DP_IND2017 + PCT_EPS_DISCOUNT2016 + PCT_CPA_DISCOUNT2016 + PCT_QS_DISCOUNT2016 + PCT_EPS_DISCOUNT2017 + PCT_CPA_DISCOUNT2017 + PCT_QS_DISCOUNT2017+B_LT100+C_100_249+D_250_499+E_500_999+F_GE1000, data = tchoice, method = "nearest", distance = "logit", ratio = 1)
+
+plot(m1.out, type="jitter")
+```
+
+---
+
+## t-test on matched data
+
+```{r}
+match.data <- read.csv("CleanData/MatchedData.csv")
+t.test(CORN_UNITS_CHG~TREATMENT, data=match.data)
+```
+
+---
+
+## Average Treatment Effect on the Treated
+
+```{r, message=FALSE}
+zqi.out <- zelig(CORN_UNITS_CHG ~ TREATMENT + REG_SAM_SOY2016 + REG_SAM_CORN2016 + PCT_CONC_CORN2016 + PCT_CONC_SOY2016 +
+           PROD_CT_CORN2016 + PROD_CT_SOY2016 + DP_IND2016 + DP_IND2017 + PCT_EPS_DISCOUNT2016 + PCT_CPA_DISCOUNT2016 +
+           PCT_QS_DISCOUNT2016 + PCT_EPS_DISCOUNT2017 + PCT_CPA_DISCOUNT2017 + PCT_QS_DISCOUNT2017 + CUST_SIZE_PHI2017,
+         data = match.data(m1.out), model = "ls", cite = F )
+
+# find the ATT where the treatement is mil = 1
+z.att <- zqi.out %>%
+             ATT(treatment = "TREATMENT", treat = 1) %>% 
+             get_qi(qi = "ATT", xvalue = "TE")
+
+# summarize the results
+hist(z.att, 
+     main = NULL,
+     xlab ="Averege Treatment Effect of mil on the Treated")
+```
+---
+
+## Discussions on PSMs
+
+There are two types of estimation method for propensity scores:
+
+1. Predict treatment as accurately as possible
+    - Inverse propensity  score weighted estimator for the causal effect
+1. Balance the distribution of predictors evenly between the treatment and control groups
+    - matching
+    - subclassification
+    
+---
+
+## Discussions on PSMs
+
+### Pros
+
+- More focus on the selection process and on the underlying assumptions
+- Imposition of the common support ensures comparability
+- Versatility:
+    - Allows to estimate heterogeneous effects (by sub-group)
+    - Allows to put more emphasis on specific variables, on which exact matching can be done (e.g. region, gender)
+    - Allows the estimation of multiple treatments: different treatment levels or types of participation can be compared
+
+---
+
+## Discussions on PSMs
+
+### Cons
+
+- "Data-hungry" method, more efficient methods under CIA
+exist
+- Requires strong robustness and sensitivity analysis
+- "No unobserved confounders" is a Strong assumption:
+- Impossible to verify, so bias stemming from unobservables can never be ruled out
+- Matching is only as good as the characteristics used for matching
+
+---
+
+## Questions & Answers
+
+- [Matchit reference manual](https://r.iq.harvard.edu/docs/matchit/2.4-20/matchit.pdf)
+- [http://docs.zeligproject.org/articles/](http://docs.zeligproject.org/articles/)
